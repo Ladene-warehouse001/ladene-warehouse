@@ -1,0 +1,425 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ระบบโกดัง LADENE</title>
+<style>
+:root{--bg:#f4f5f7;--card:#fff;--ink:#1c2430;--mute:#5d6878;--line:#d5dae2;--pri:#1f3864;--ok:#1a7f4b;--bad:#b3261e;--warn:#9a6700}
+*{box-sizing:border-box}
+body{margin:0;font-family:Arial,"Noto Sans Thai",Tahoma,sans-serif;background:var(--bg);color:var(--ink);font-size:17px}
+header{background:var(--pri);color:#fff;padding:12px 16px;display:flex;justify-content:space-between;align-items:center}
+header b{font-size:18px}
+header button{background:transparent;border:1px solid #fff;color:#fff;border-radius:6px;padding:6px 10px;font-size:14px}
+main{max-width:640px;margin:0 auto;padding:14px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px;margin-bottom:12px}
+h2{font-size:19px;margin:0 0 10px}
+label{display:block;font-size:14px;color:var(--mute);margin:10px 0 4px}
+input,select,textarea{width:100%;padding:11px;border:1px solid var(--line);border-radius:8px;font-size:17px;font-family:inherit;background:#fff;color:var(--ink)}
+button{font-family:inherit;font-size:17px;border-radius:8px;padding:12px 14px;border:1px solid var(--line);background:#fff;color:var(--ink);cursor:pointer}
+button.pri{background:var(--pri);color:#fff;border-color:var(--pri);width:100%;margin-top:12px}
+button.sec{width:100%;margin-top:8px}
+.menu{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.menu button{padding:22px 8px;font-size:18px;font-weight:bold}
+.row{display:flex;gap:8px}.row>*{flex:1}
+.seg{display:flex;gap:8px}.seg button{flex:1}.seg button.on{background:var(--pri);color:#fff;border-color:var(--pri)}
+.msg{padding:10px 12px;border-radius:8px;margin-top:10px;font-size:15px;white-space:pre-line}
+.msg.ok{background:#e6f4ec;color:var(--ok)}.msg.bad{background:#fbe9e7;color:var(--bad)}.msg.warn{background:#fff4d6;color:var(--warn)}
+.info{font-size:15px;line-height:1.6}.info b{font-size:17px}
+.tag{display:inline-block;padding:2px 8px;border-radius:6px;background:#e8ecf3;font-size:13px;margin-left:6px}
+.hide{display:none!important}
+#reader{width:100%;margin-top:8px}
+.small{font-size:13px;color:var(--mute)}
+.qbtn{display:flex;gap:6px;margin-top:6px}.qbtn button{flex:1;padding:8px;font-size:14px}
+ul.list{margin:6px 0 0;padding-left:18px;font-size:14px}
+/* ---- ฉลาก ---- */
+#printArea{display:none}
+@media print{
+  @page{size:A4;margin:0}
+  body{background:#fff}
+  header,main{display:none!important}
+  #printArea{display:block}
+  .sheet{width:210mm;height:296mm;display:grid;page-break-after:always;overflow:hidden}
+  .lab{overflow:hidden;padding:2.5mm 4mm;font-size:9pt;line-height:1.25;color:#000}
+  .lab .nm{font-weight:bold;font-size:11pt;height:9.5mm;overflow:hidden}
+  .lab .ln{display:flex;justify-content:space-between}
+  .lab .pile{font-weight:bold;border:1px solid #000;padding:0 2mm}
+  .lab svg{display:block;margin:0.5mm auto 0;height:19mm;max-width:100%}
+}
+</style>
+</head>
+<body>
+<header><b id="title">ระบบโกดัง LADENE</b><button id="btnHome" class="hide">เมนู</button></header>
+<main>
+
+<section id="scrSetup" class="card hide">
+  <h2>ตั้งค่าเครื่องนี้</h2>
+  <label>ลิงก์ Apps Script (ลงท้ายด้วย /exec)</label><input id="setUrl" placeholder="https://script.google.com/macros/s/.../exec">
+  <label>รหัส PIN</label><input id="setPin" type="password" inputmode="numeric">
+  <label>ชื่อผู้ใช้เครื่องนี้</label><input id="setUser">
+  <button class="pri" id="btnSaveSetup">บันทึกและทดสอบการเชื่อมต่อ</button>
+  <div id="setupMsg"></div>
+</section>
+
+<section id="scrMenu" class="hide">
+  <div class="menu">
+    <button data-go="receive">รับเข้า</button><button data-go="sell">ขาย</button>
+    <button data-go="gift">แถม</button><button data-go="back">รับคืน</button>
+    <button data-go="count">ตรวจนับ</button><button data-go="view">ดูฉลาก</button>
+    <button data-go="print">พิมพ์ฉลาก</button><button data-go="setup">ตั้งค่า</button>
+  </div>
+  <p class="small" id="who"></p>
+</section>
+
+<section id="scrScan" class="card hide">
+  <h2 id="scanTitle">สแกน</h2>
+  <div class="row"><input id="scanInput" placeholder="ยิงหรือพิมพ์เลข แล้วกด ตกลง" autocomplete="off"><button id="btnScanOk" style="flex:0 0 90px">ตกลง</button></div>
+  <button class="sec" id="btnCam">เปิดกล้องสแกน</button>
+  <div id="reader"></div>
+  <div id="scanMsg"></div>
+</section>
+
+<section id="scrReceive" class="card hide">
+  <h2>รับเข้า</h2>
+  <label>ประเภท</label><div class="seg" id="rcType"><button data-v="รับเข้า" class="on">รับเข้า (ซื้อ)</button><button data-v="รับคืน">รับคืน (ไม่มีลังเดิม)</button></div>
+  <label>กอง</label><div class="seg" id="rcPile"><button data-v="VAT">VAT</button><button data-v="Non-VAT">Non-VAT</button></div>
+  <label>สินค้า (ยิงบาร์โค้ดบนชิ้น หรือพิมพ์ค้นชื่อ/รหัส)</label>
+  <div class="row"><input id="rcProd" list="prodList" autocomplete="off"><button id="btnRcCam" style="flex:0 0 90px">สแกน</button></div>
+  <datalist id="prodList"></datalist>
+  <div class="small" id="rcProdInfo"></div>
+  <div class="row"><div><label>วันผลิต</label><input id="rcMfd" type="date"></div><div><label>วันหมดอายุ</label><input id="rcExp" type="date"></div></div>
+  <div class="small" id="rcDateText"></div>
+  <label>เลขล็อตจากโรงงาน (ถ้าไม่มีให้เว้นว่าง ระบบตั้งจากวันผลิต)</label><input id="rcLot" autocomplete="off">
+  <div class="row"><div><label>จำนวนลัง</label><input id="rcCartons" type="number" inputmode="numeric" min="1" value="1"></div><div><label>ชิ้นต่อลัง</label><input id="rcPcs" type="number" inputmode="numeric" min="1"></div></div>
+  <label>เลขที่เอกสาร</label><input id="rcDoc" autocomplete="off">
+  <label>ผู้ขาย / ลูกค้าที่คืน</label><input id="rcParty" autocomplete="off">
+  <label>หมายเหตุ</label><input id="rcNote" autocomplete="off">
+  <button class="pri" id="btnRcSave">บันทึกรับเข้า</button>
+  <div id="rcMsg"></div>
+</section>
+
+<section id="scrOut" class="card hide">
+  <h2 id="outTitle">ขาย</h2>
+  <label>บิลนี้เป็น</label><div class="seg" id="outPile"><button data-v="VAT">VAT</button><button data-v="Non-VAT">Non-VAT</button></div>
+  <label id="outDocLabel">เลขที่บิล</label><input id="outDoc" autocomplete="off">
+  <label>ลูกค้า</label><input id="outParty" autocomplete="off">
+  <button class="pri" id="btnOutScan">สแกนฉลากลัง</button>
+  <div id="outLabel" class="hide">
+    <div class="info" id="outInfo"></div>
+    <label>จำนวนชิ้น</label><input id="outQty" type="number" inputmode="numeric" min="1">
+    <div class="qbtn" id="outQuick"></div>
+    <label id="outNoteLabel" class="hide">หมายเหตุ</label><input id="outNote" class="hide" autocomplete="off">
+    <button class="pri" id="btnOutSave">บันทึก</button>
+  </div>
+  <div id="outMsg"></div>
+  <ul class="list" id="outDone"></ul>
+</section>
+
+<section id="scrCount" class="card hide">
+  <h2>ตรวจนับ</h2>
+  <button class="pri" id="btnCountScan">สแกนฉลากลัง</button>
+  <div id="countLabel" class="hide">
+    <div class="info" id="countInfo"></div>
+    <label>ยอดที่นับได้ (ชิ้น)</label><input id="countQty" type="number" inputmode="numeric" min="0">
+    <button class="pri" id="btnCountSave">บันทึกยอดนับ</button>
+  </div>
+  <div id="countMsg"></div>
+  <ul class="list" id="countDone"></ul>
+</section>
+
+<section id="scrView" class="card hide">
+  <h2>ดูฉลาก</h2>
+  <button class="pri" id="btnViewScan">สแกนฉลากลัง</button>
+  <div class="info" id="viewInfo"></div>
+  <div id="viewMsg"></div>
+</section>
+
+<section id="scrPrint" class="card hide">
+  <h2>พิมพ์ฉลาก</h2>
+  <label>เลขฉลาก คั่นด้วยจุลภาค หรือเป็นช่วง เช่น W000176-W000185</label>
+  <textarea id="prIds" rows="3"></textarea>
+  <label>เริ่มพิมพ์ที่ดวงที่ (1 ถึง 10) ใช้เมื่อแผ่นสติกเกอร์ถูกใช้ไปบางดวง</label><input id="prStart" type="number" min="1" max="10" value="1">
+  <details><summary class="small">ขนาดสติกเกอร์ (มม.)</summary>
+    <div class="row"><div><label>กว้าง</label><input id="lyW" type="number" step="0.1"></div><div><label>สูง</label><input id="lyH" type="number" step="0.1"></div></div>
+    <div class="row"><div><label>ขอบบน</label><input id="lyT" type="number" step="0.1"></div><div><label>ขอบซ้าย</label><input id="lyL" type="number" step="0.1"></div><div><label>ช่องว่างคอลัมน์</label><input id="lyG" type="number" step="0.1"></div></div>
+  </details>
+  <button class="pri" id="btnPrint">เตรียมฉลากและพิมพ์</button>
+  <p class="small">ในหน้าต่างพิมพ์ ให้ตั้ง กระดาษ A4, ขอบ ไม่มี, มาตราส่วน 100% และลองพิมพ์บนกระดาษธรรมดาเทียบกับแผ่นสติกเกอร์ก่อนทุกครั้งที่เปลี่ยนยี่ห้อสติกเกอร์</p>
+  <div id="prMsg"></div>
+</section>
+
+</main>
+<div id="printArea"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.6/dist/JsBarcode.all.min.js"></script>
+<script>
+(function(){
+'use strict';
+var $=function(id){return document.getElementById(id);};
+var store={get:function(k){try{return localStorage.getItem('wh_'+k)||'';}catch(e){return '';}},set:function(k,v){try{localStorage.setItem('wh_'+k,v);}catch(e){}}};
+var cfg={url:store.get('url'),pin:store.get('pin'),user:store.get('user')};
+var products=[],byCode={},byBarcode={},today='';
+var screens=['scrSetup','scrMenu','scrScan','scrReceive','scrOut','scrCount','scrView','scrPrint'];
+var outType='ขาย',cur=null,scanCb=null,scanBack='scrMenu',cam=null,busy=false;
+var TH_M=['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
+
+function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
+function dText(ymd){if(!ymd)return '-';var p=ymd.split('-');return Number(p[2])+' '+TH_M[Number(p[1])-1]+' '+p[0];}
+function msg(el,text,kind){$(el).innerHTML=text?'<div class="msg '+(kind||'bad')+'">'+esc(text)+'</div>':'';}
+function show(id){stopCam();screens.forEach(function(s){$(s).classList.toggle('hide',s!==id);});$('btnHome').classList.toggle('hide',id==='scrMenu'||(id==='scrSetup'&&!cfg.url));window.scrollTo(0,0);}
+function seg(id,onChange){var box=$(id);box.addEventListener('click',function(e){var b=e.target.closest('button');if(!b)return;[].forEach.call(box.children,function(x){x.classList.toggle('on',x===b);});if(onChange)onChange(b.dataset.v);});}
+function segVal(id){var b=$(id).querySelector('button.on');return b?b.dataset.v:'';}
+function segSet(id,v){[].forEach.call($(id).children,function(x){x.classList.toggle('on',x.dataset.v===v);});}
+
+function api(body){
+  body.pin=cfg.pin;body.user=cfg.user;
+  return fetch(cfg.url,{method:'POST',redirect:'follow',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(body)})
+    .then(function(r){return r.text();})
+    .then(function(t){try{return JSON.parse(t);}catch(e){return {ok:false,error:'เซิร์ฟเวอร์ตอบกลับผิดรูปแบบ ตรวจลิงก์ Apps Script และการ Deploy'};}})
+    .catch(function(){return {ok:false,error:'เชื่อมต่อไม่ได้ ตรวจอินเทอร์เน็ต ลิงก์ Apps Script และสิทธิ์การเข้าถึงแบบ Anyone'};});
+}
+function guard(fn){return function(){if(busy)return;busy=true;var done=function(){busy=false;};try{var p=fn();if(p&&p.then)p.then(done,done);else done();}catch(e){done();throw e;}};}
+
+/* ---------- เริ่มต้น ---------- */
+function loadInit(){
+  return api({action:'init'}).then(function(r){
+    if(!r.ok)return r;
+    products=r.products;today=r.today;byCode={};byBarcode={};
+    var dl=$('prodList');dl.innerHTML='';
+    products.forEach(function(p){byCode[p.code]=p;p.barcodes.forEach(function(b){byBarcode[b]=p;});
+      var o=document.createElement('option');o.value=p.code+' '+p.name;dl.appendChild(o);});
+    return r;
+  });
+}
+function goMenu(){$('who').textContent='ผู้ใช้: '+cfg.user+' | สินค้า '+products.length+' รายการ';show('scrMenu');}
+function openSetup(){$('setUrl').value=cfg.url;$('setPin').value=cfg.pin;$('setUser').value=cfg.user;msg('setupMsg','');show('scrSetup');}
+
+$('btnSaveSetup').addEventListener('click',guard(function(){
+  var url=$('setUrl').value.trim(),pin=$('setPin').value.trim(),user=$('setUser').value.trim();
+  if(!/^https:\/\/script\.google\.com\/.+\/exec$/.test(url)){msg('setupMsg','ลิงก์ต้องขึ้นต้นด้วย https://script.google.com/ และลงท้ายด้วย /exec');return;}
+  if(!pin||!user){msg('setupMsg','ต้องใส่รหัส PIN และชื่อผู้ใช้');return;}
+  cfg={url:url,pin:pin,user:user};msg('setupMsg','กำลังทดสอบ...','warn');
+  return loadInit().then(function(r){
+    if(!r.ok){msg('setupMsg',r.error);return;}
+    store.set('url',url);store.set('pin',pin);store.set('user',user);goMenu();
+  });
+}));
+$('btnHome').addEventListener('click',function(){if(products.length)goMenu();});
+$('scrMenu').addEventListener('click',function(e){
+  var b=e.target.closest('button');if(!b)return;var go=b.dataset.go;
+  if(go==='setup')openSetup();
+  else if(go==='receive')openReceive();
+  else if(go==='sell'||go==='gift')openOut(go==='sell'?'ขาย':'แถม');
+  else if(go==='back')openOut('รับคืน');
+  else if(go==='count'){cur=null;$('countLabel').classList.add('hide');msg('countMsg','');show('scrCount');}
+  else if(go==='view'){$('viewInfo').innerHTML='';msg('viewMsg','');show('scrView');}
+  else if(go==='print')openPrint('');
+});
+
+/* ---------- สแกน ---------- */
+function stopCam(){if(cam){var c=cam;cam=null;try{c.stop().then(function(){c.clear();},function(){});}catch(e){}}$('reader').innerHTML='';}
+function startCam(){
+  if(typeof Html5Qrcode==='undefined'){msg('scanMsg','โหลดตัวสแกนไม่สำเร็จ ให้พิมพ์เลขแทน หรือรีเฟรชหน้า');return;}
+  stopCam();msg('scanMsg','');
+  var F=Html5QrcodeSupportedFormats;
+  var c=new Html5Qrcode('reader',{formatsToSupport:[F.CODE_128,F.EAN_13,F.QR_CODE],verbose:false});
+  cam=c;
+  c.start({facingMode:'environment'},{fps:10,qrbox:function(w,h){return {width:Math.floor(Math.min(w,h*2)*0.9),height:Math.floor(Math.min(h*0.5,140))};}},
+    function(text){if(cam!==c)return;stopCam();finishScan(text);},function(){})
+   .catch(function(){if(cam===c)cam=null;msg('scanMsg','เปิดกล้องไม่ได้ ให้กดอนุญาตการใช้กล้องของเว็บนี้ หรือพิมพ์เลขแทน');});
+}
+function askScan(title,back,cb){scanCb=cb;scanBack=back;$('scanTitle').textContent=title;$('scanInput').value='';msg('scanMsg','');show('scrScan');$('scanInput').focus();}
+function finishScan(text){text=String(text||'').trim();if(!text)return;var cb=scanCb;scanCb=null;show(scanBack);if(cb)cb(text);}
+$('btnCam').addEventListener('click',startCam);
+$('btnScanOk').addEventListener('click',function(){finishScan($('scanInput').value);});
+$('scanInput').addEventListener('keydown',function(e){if(e.key==='Enter'){e.preventDefault();finishScan($('scanInput').value);}});
+
+function labelHtml(l){
+  var st=l.expired?' <span class="tag" style="background:#fbe9e7;color:#b3261e">หมดอายุแล้ว</span>':'';
+  return '<b>'+esc(l.name)+'</b><span class="tag">'+esc(l.pile)+'</span>'+st+'<br>ฉลาก '+esc(l.id)+' | รหัส '+esc(l.code)+
+    '<br>ล็อต '+esc(l.lot)+'<br>ผลิต '+dText(l.mfd)+' | หมดอายุ '+dText(l.exp)+'<br>คงเหลือในลัง <b>'+l.balance+'</b> ชิ้น (ตั้งต้น '+l.init+')';
+}
+function fetchLabel(id,msgEl){return api({action:'label',id:id}).then(function(r){if(!r.ok){msg(msgEl,r.error);return null;}return r.label;});}
+
+/* ---------- รับเข้า ---------- */
+function findProduct(text){
+  text=String(text||'').trim();if(!text)return null;
+  if(byBarcode[text])return byBarcode[text];
+  var code=text.split(' ')[0];if(byCode[code])return byCode[code];
+  if(byCode[text])return byCode[text];
+  return null;
+}
+function rcProdChanged(){
+  var p=findProduct($('rcProd').value);
+  if(p){$('rcProdInfo').textContent='เลือก: '+p.code+' '+p.name+(p.perCarton?' | ลังละ '+p.perCarton+' ชิ้น':' | ยังไม่มีข้อมูลชิ้นต่อลัง')+(p.status==='ยกเลิกผลิต'?' | ยกเลิกผลิต':'');if(p.perCarton)$('rcPcs').value=p.perCarton;}
+  else $('rcProdInfo').textContent=$('rcProd').value?'ยังไม่พบสินค้า ให้เลือกจากรายการ':'';
+}
+function rcDates(){$('rcDateText').textContent='ผลิต '+dText($('rcMfd').value)+' | หมดอายุ '+dText($('rcExp').value);}
+function openReceive(){msg('rcMsg','');show('scrReceive');}
+seg('rcType');seg('rcPile');
+$('rcProd').addEventListener('change',rcProdChanged);$('rcProd').addEventListener('input',rcProdChanged);
+$('rcMfd').addEventListener('change',rcDates);$('rcExp').addEventListener('change',rcDates);
+$('btnRcCam').addEventListener('click',function(){askScan('สแกนบาร์โค้ดบนชิ้นสินค้า','scrReceive',function(t){$('rcProd').value=t;var p=findProduct(t);if(p)$('rcProd').value=p.code+' '+p.name;rcProdChanged();if(!p)msg('rcMsg','ไม่พบบาร์โค้ด '+t+' ในรายการสินค้า ให้เลือกสินค้าจากรายการ แล้วเพิ่มบาร์โค้ดนี้ในชีต สินค้า');});});
+$('btnRcSave').addEventListener('click',guard(function(){
+  var p=findProduct($('rcProd').value),pile=segVal('rcPile'),mfd=$('rcMfd').value,exp=$('rcExp').value;
+  var cartons=Number($('rcCartons').value),pcs=Number($('rcPcs').value);
+  if(!p){msg('rcMsg','ยังไม่ได้เลือกสินค้า');return;}
+  if(!pile){msg('rcMsg','ยังไม่ได้เลือกกอง VAT หรือ Non-VAT');return;}
+  if(!mfd||!exp){msg('rcMsg','ต้องใส่วันผลิตและวันหมดอายุ');return;}
+  if(exp<=mfd){msg('rcMsg','วันหมดอายุต้องอยู่หลังวันผลิต');return;}
+  if(!(cartons>=1)||!(pcs>=1)){msg('rcMsg','ต้องใส่จำนวนลังและชิ้นต่อลัง');return;}
+  var sum=segVal('rcType')+' '+p.name+'\nกอง '+pile+'\nผลิต '+dText(mfd)+' หมดอายุ '+dText(exp)+'\n'+cartons+' ลัง x '+pcs+' ชิ้น = '+(cartons*pcs)+' ชิ้น\n\nยืนยันบันทึก?';
+  if(!confirm(sum))return;
+  msg('rcMsg','กำลังบันทึก...','warn');
+  return api({action:'receive',type:segVal('rcType'),code:p.code,pile:pile,lot:$('rcLot').value,mfd:mfd,exp:exp,cartons:cartons,pcs:pcs,doc:$('rcDoc').value,party:$('rcParty').value,note:$('rcNote').value}).then(function(r){
+    if(!r.ok){msg('rcMsg',r.error);return;}
+    var ids=r.ids,range=ids.length>1?ids[0]+'-'+ids[ids.length-1]:ids[0];
+    $('rcMsg').innerHTML='<div class="msg ok">บันทึกแล้ว '+esc(r.name)+' รวม '+r.total+' ชิ้น<br>ฉลาก '+esc(range)+'</div><button class="sec" id="btnRcPrint">พิมพ์ฉลาก '+ids.length+' ดวง</button>';
+    $('btnRcPrint').addEventListener('click',function(){openPrint(range);});
+    $('rcProd').value='';$('rcLot').value='';$('rcCartons').value='1';$('rcProdInfo').textContent='';
+  });
+}));
+
+/* ---------- ขาย / แถม / รับคืน ---------- */
+function openOut(type){
+  outType=type;cur=null;var isBack=type==='รับคืน';
+  $('outTitle').textContent=type;$('outDocLabel').textContent=isBack?'เลขที่ใบลดหนี้หรือบิลเดิม':'เลขที่บิล';
+  $('outPile').parentNode.querySelector('label').classList.toggle('hide',isBack);$('outPile').classList.toggle('hide',isBack);
+  $('outNote').classList.toggle('hide',!isBack);$('outNoteLabel').classList.toggle('hide',!isBack);
+  $('outLabel').classList.add('hide');$('outDone').innerHTML='';msg('outMsg','');show('scrOut');
+}
+seg('outPile');
+$('btnOutScan').addEventListener('click',function(){
+  if(!$('outDoc').value.trim()){msg('outMsg','ใส่เลขที่เอกสารก่อนสแกน');return;}
+  if(outType!=='รับคืน'&&!segVal('outPile')){msg('outMsg','เลือกก่อนว่าบิลนี้เป็น VAT หรือ Non-VAT');return;}
+  askScan('สแกนฉลากลัง ('+outType+')','scrOut',function(t){
+    msg('outMsg','กำลังค้นหา...','warn');$('outLabel').classList.add('hide');
+    fetchLabel(t,'outMsg').then(function(l){
+      if(!l)return;cur=l;msg('outMsg','');
+      if(outType!=='รับคืน'&&l.pile!==segVal('outPile')){cur=null;msg('outMsg','หยิบผิดกอง: บิลเป็น '+segVal('outPile')+' แต่ฉลากนี้อยู่กอง '+l.pile+'\nไม่บันทึก ให้เปลี่ยนลัง');return;}
+      var warn='';
+      if(outType!=='รับคืน'&&l.earlier.length){warn='<div class="msg warn">มีล็อตที่หมดอายุก่อนเหลืออยู่ ควรหยิบก่อน:<br>'+l.earlier.map(function(o){return esc(o.id)+' หมดอายุ '+dText(o.exp)+' เหลือ '+o.balance+' ชิ้น';}).join('<br>')+'</div>';}
+      $('outInfo').innerHTML=labelHtml(l)+warn;
+      var q=$('outQuick');q.innerHTML='';
+      if(outType!=='รับคืน'){
+        var add=function(text,n){if(n>0&&n<=l.balance){var b=document.createElement('button');b.textContent=text;b.addEventListener('click',function(){$('outQty').value=n;});q.appendChild(b);}};
+        add('ทั้งลัง ('+l.balance+')',l.balance);if(l.perBox&&l.perBox!==12)add('1 กล่อง ('+l.perBox+')',l.perBox);add('1 โหล (12)',12);
+      }
+      $('outQty').value='';$('outLabel').classList.remove('hide');$('outQty').focus();
+    });
+  });
+});
+function sendOut(extra){
+  var body={action:outType==='รับคืน'?'back':'out',type:outType,id:cur.id,qty:Number($('outQty').value),doc:$('outDoc').value,party:$('outParty').value,billPile:segVal('outPile'),note:$('outNote').value};
+  Object.keys(extra||{}).forEach(function(k){body[k]=extra[k];});
+  msg('outMsg','กำลังบันทึก...','warn');
+  return api(body).then(function(r){
+    if(r.ok){
+      var li=document.createElement('li');li.textContent=outType+' '+cur.name+' ['+cur.id+'] '+body.qty+' ชิ้น เหลือในลัง '+r.balance;$('outDone').insertBefore(li,$('outDone').firstChild);
+      msg('outMsg','บันทึกแล้ว เหลือในลัง '+r.balance+' ชิ้น','ok');cur=null;$('outLabel').classList.add('hide');return;
+    }
+    if(r.need==='expired'){
+      if(confirm('สินค้าลังนี้หมดอายุแล้ว ('+dText(r.exp)+')\nยืนยันจะ'+outType+'ต่อหรือไม่')){extra=extra||{};extra.confirmExpired=true;return sendOut(extra);}
+      msg('outMsg','ยกเลิก ไม่ได้บันทึก');return;
+    }
+    if(r.need==='fefo'){
+      var list=r.earlier.map(function(o){return o.id+' หมดอายุ '+dText(o.exp)+' เหลือ '+o.balance;}).join('\n');
+      var reason=prompt('มีล็อตที่หมดอายุก่อนเหลืออยู่:\n'+list+'\n\nถ้าจะใช้ลังนี้ต่อ ให้พิมพ์เหตุผล (กดยกเลิกเพื่อไปเปลี่ยนลัง)');
+      if(reason&&reason.trim()){extra=extra||{};extra.reason=reason.trim();return sendOut(extra);}
+      msg('outMsg','ยกเลิก ไม่ได้บันทึก ให้หยิบลังที่หมดอายุก่อน');return;
+    }
+    msg('outMsg',r.error);
+  });
+}
+$('btnOutSave').addEventListener('click',guard(function(){
+  if(!cur)return;var q=Number($('outQty').value);
+  if(!(q>=1)||Math.floor(q)!==q){msg('outMsg','จำนวนต้องเป็นจำนวนเต็มมากกว่า 0');return;}
+  var dup=[].some.call($('outDone').children,function(li){return li.textContent.indexOf('['+cur.id+']')>=0;});
+  if(dup&&!confirm('ฉลาก '+cur.id+' ถูกบันทึกในเอกสารนี้ไปแล้ว ต้องการบันทึกซ้ำอีกรายการหรือไม่'))return;
+  return sendOut({});
+}));
+
+/* ---------- ตรวจนับ ---------- */
+$('btnCountScan').addEventListener('click',function(){
+  askScan('สแกนฉลากลัง (ตรวจนับ)','scrCount',function(t){
+    msg('countMsg','กำลังค้นหา...','warn');$('countLabel').classList.add('hide');
+    fetchLabel(t,'countMsg').then(function(l){if(!l)return;cur=l;msg('countMsg','');$('countInfo').innerHTML=labelHtml(l);$('countQty').value='';$('countLabel').classList.remove('hide');$('countQty').focus();});
+  });
+});
+$('btnCountSave').addEventListener('click',guard(function(){
+  if(!cur)return;var v=$('countQty').value,q=Number(v);
+  if(v===''||!(q>=0)||Math.floor(q)!==q){msg('countMsg','ใส่ยอดที่นับได้เป็นจำนวนเต็ม (ถ้าไม่มีของให้ใส่ 0)');return;}
+  msg('countMsg','กำลังบันทึก...','warn');var l=cur;
+  return api({action:'count',id:l.id,counted:q}).then(function(r){
+    if(!r.ok){msg('countMsg',r.error);return;}
+    var li=document.createElement('li');li.textContent=l.id+' '+l.name+' นับ '+q+' ระบบ '+r.system+' ต่าง '+(r.diff>0?'+':'')+r.diff;$('countDone').insertBefore(li,$('countDone').firstChild);
+    msg('countMsg',r.diff===0?'บันทึกแล้ว ยอดตรงกับระบบ':'บันทึกแล้ว ส่วนต่าง '+(r.diff>0?'+':'')+r.diff+' ชิ้น รอหัวหน้าอนุมัติปรับยอด',r.diff===0?'ok':'warn');
+    cur=null;$('countLabel').classList.add('hide');
+  });
+}));
+
+/* ---------- ดูฉลาก ---------- */
+$('btnViewScan').addEventListener('click',function(){
+  askScan('สแกนฉลากลัง','scrView',function(t){$('viewInfo').innerHTML='';msg('viewMsg','กำลังค้นหา...','warn');
+    fetchLabel(t,'viewMsg').then(function(l){if(!l)return;msg('viewMsg','');$('viewInfo').innerHTML=labelHtml(l)+(l.earlier.length?'<div class="msg warn">ล็อตที่หมดอายุก่อน: '+l.earlier.map(function(o){return esc(o.id)+' ('+dText(o.exp)+')';}).join(', ')+'</div>':'');});});
+});
+
+/* ---------- พิมพ์ฉลาก ---------- */
+var LY={W:99.1,H:57,T:6,L:4.65,G:2.5};
+function openPrint(ids){
+  Object.keys(LY).forEach(function(k){$('ly'+k).value=store.get('ly'+k)||LY[k];});
+  if(ids)$('prIds').value=ids;msg('prMsg','');show('scrPrint');
+}
+function expandIds(text){
+  var out=[],bad=[];
+  String(text||'').toUpperCase().split(/[,\s]+/).forEach(function(tok){
+    if(!tok)return;var m=/^W(\d{1,6})(?:-W?(\d{1,6}))?$/.exec(tok);
+    if(!m){bad.push(tok);return;}
+    var a=Number(m[1]),b=m[2]?Number(m[2]):a;if(b<a||b-a>299){bad.push(tok);return;}
+    for(var i=a;i<=b;i++)out.push('W'+('000000'+i).slice(-6));
+  });
+  return {ids:out,bad:bad};
+}
+$('btnPrint').addEventListener('click',guard(function(){
+  var ex=expandIds($('prIds').value);
+  if(ex.bad.length){msg('prMsg','เลขฉลากไม่ถูกรูปแบบ: '+ex.bad.join(', '));return;}
+  if(!ex.ids.length){msg('prMsg','ยังไม่ได้ใส่เลขฉลาก');return;}
+  if(ex.ids.length>300){msg('prMsg','พิมพ์ได้ครั้งละไม่เกิน 300 ฉลาก');return;}
+  if(typeof JsBarcode==='undefined'){msg('prMsg','โหลดตัวสร้างบาร์โค้ดไม่สำเร็จ ให้รีเฟรชหน้าแล้วลองใหม่');return;}
+  var ly={};Object.keys(LY).forEach(function(k){var v=Number($('ly'+k).value);ly[k]=v>0||(v===0&&k!=='W'&&k!=='H')?v:LY[k];store.set('ly'+k,String(ly[k]));});
+  var start=Math.min(10,Math.max(1,Math.floor(Number($('prStart').value)||1)));
+  msg('prMsg','กำลังเตรียมฉลาก...','warn');
+  return api({action:'labels',ids:ex.ids}).then(function(r){
+    if(!r.ok){msg('prMsg',r.error);return;}
+    var cells=[],i;for(i=1;i<start;i++)cells.push(null);r.labels.forEach(function(l){cells.push(l);});
+    var area=$('printArea');area.innerHTML='';
+    for(i=0;i<cells.length;i+=10){
+      var sheet=document.createElement('div');sheet.className='sheet';
+      sheet.style.cssText='padding:'+ly.T+'mm 0 0 '+ly.L+'mm;grid-template-columns:'+ly.W+'mm '+ly.W+'mm;column-gap:'+ly.G+'mm;grid-auto-rows:'+ly.H+'mm;align-content:start;justify-content:start';
+      cells.slice(i,i+10).forEach(function(l){
+        var d=document.createElement('div');d.className='lab';
+        if(l){
+          d.innerHTML='<div class="nm">'+esc(l.name)+'</div><div class="ln"><span>รหัส '+esc(l.code)+' | LOT '+esc(l.lot)+'</span><span class="pile">'+esc(l.pile)+'</span></div>'+
+            '<div class="ln"><span>ผลิต '+dText(l.mfd)+'</span><span>หมดอายุ '+dText(l.exp)+'</span></div><div class="ln"><span>บรรจุ '+l.init+' ชิ้น</span><span></span></div>';
+          var svg=document.createElementNS('http://www.w3.org/2000/svg','svg');d.appendChild(svg);
+          JsBarcode(svg,l.id,{format:'CODE128',width:2.4,height:48,fontSize:16,margin:6,displayValue:true});
+          var w=svg.getAttribute('width'),h=svg.getAttribute('height');
+          if(w&&h){svg.setAttribute('viewBox','0 0 '+parseFloat(w)+' '+parseFloat(h));svg.removeAttribute('width');svg.removeAttribute('height');svg.style.width='';}
+        }
+        sheet.appendChild(d);
+      });
+      area.appendChild(sheet);
+    }
+    msg('prMsg','เตรียมแล้ว '+r.labels.length+' ฉลาก','ok');
+    setTimeout(function(){window.print();},200);
+  });
+}));
+
+/* ---------- เปิดหน้า ---------- */
+if(!cfg.url||!cfg.pin||!cfg.user){openSetup();}
+else{$('title').textContent='กำลังเชื่อมต่อ...';loadInit().then(function(r){$('title').textContent='ระบบโกดัง LADENE';if(r.ok)goMenu();else{openSetup();msg('setupMsg',r.error);}});}
+})();
+</script>
+</body>
+</html>
